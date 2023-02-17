@@ -25,7 +25,7 @@ use std::env;
 mod iomod;
 use iomod::*;
 
-struct DocStructure {
+struct DocHandler {
     text: Vec<String>,     //text contents of doc
     line_data: Vec<usize>, //retains the len of each line in text
     num_lines: usize, //number of lines
@@ -36,7 +36,7 @@ struct DocStructure {
 impl DocHandler {
     //for initializing a completely new doc
     fn new() -> Self {
-        let mut text : Vec<String> = vec![String::new())];
+        let mut text : Vec<String> = vec![String::new()];
         let mut line_data : Vec<usize> = vec![0_usize];
         let mut num_lines : usize = 0;
         let mut pointer_x : usize = 0;
@@ -116,7 +116,11 @@ impl DocHandler {
     }
 
     fn newline(&mut self) {
-        todo()
+        self.pointer_y += 1;
+        self.text.insert(self.poiner_y, String::from("\n"));
+        self.text.insert(self.pointer_y, 1_usize);
+        let self.pointer_x = 0;
+        self.num_lines += 1;
     }
 }
 
@@ -486,9 +490,9 @@ pub async fn run() {
 
 
                         //Return
-                        //WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
-                        //        virtual_keycode: Some(VirtualKeyCode::Return), .. },  ..
-                        //} => {text[0].push_str("\n")},
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Return), .. },  ..
+                        } => { doc_handler.newline() },
 
                         //Delete
                         WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
