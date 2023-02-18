@@ -28,7 +28,6 @@ pub fn load_file_txt(path : &PathBuf) -> Result<Vec<String>, std::io::Error> {
 	//for every entry in text write as String to result vec
 	for line in text {
 		let mut _line = String::from(line); 
-		_line.push('\n'); //design choice: consider not putting a \n on last line
 		result.push( _line )
 	};
 

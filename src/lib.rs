@@ -1,8 +1,8 @@
 //TODO:
-// implement newline method for DocHandler
 // implement txt file io - saving + handle when no .txt exists to grab
 // implement saving functionality
 // implement file creation
+// start cursor move and display
 // implement GUI for above
 
 use winit::{
@@ -20,6 +20,8 @@ use wgpu_glyph::{
 };
 
 use std::env;
+use std::path::Path;
+use std::path::PathBuf;
 
 //modules
 mod iomod;
@@ -66,10 +68,10 @@ impl DocHandler {
         };
 
         //get number of lines
-        let mut num_lines = line_data.len();
+        let mut num_lines = line_data.len() - 1;
 
         //default cursor to last position in doc
-        let mut pointer_x = line_data[num_lines];
+        let mut pointer_x = line_data[num_lines] - 1;
         let mut pointer_y = num_lines;
 
         Self {
@@ -82,20 +84,25 @@ impl DocHandler {
 
     }//end load def
 
-    fn delete(&mut self) {
+    fn backspace(&mut self) {
         if self.pointer_x > 0 && self.pointer_y >= 0 {
-            //move pointer a space left
-            self.pointer_x -= 1;
             //truncate line to decremented size
-            self.text[self.pointer_y].truncate(self.pointer_x);
+            self.text[self.pointer_y].remove(self.pointer_x);
+            //update pointer
+            self.pointer_x -= 1;
             //update line data to reflect the line y has been shortened to len pointer_x
-            self.line_data[self.pointer_y] = self.pointer_x;
+            self.line_data[self.pointer_y] = self.text[self.pointer_y].len();
 
-        } else if self.pointer_x == 0 && self.pointer_y > 0 {
+        } else if self.pointer_x == 0 && self.pointer_y >= 0 && self.line_data[self.pointer_y] > 0 {
+            self.text[self.pointer_y].pop();
+            self.line_data[self.pointer_y] = self.text[self.pointer_y].len();
+
+        } else if self.pointer_x == 0 && self.pointer_y > 0 && self.line_data[self.pointer_y] == 0 {
             //x is at furthest left point
             //remove the line the pointer is currently on and append the rest of the line
             //to the end of the line above should there be any text there
-            self.text[self.pointer_y - 1].push_str( self.text.remove(self.pointer_y).as_str() );
+            let tmp = self.text.remove(self.pointer_y);
+            self.text[self.pointer_y - 1].push_str( tmp.as_str() );
             //update line data to reflect that line was deleted
             self.line_data.remove(self.pointer_y);
             //move pointer up a line
@@ -103,23 +110,37 @@ impl DocHandler {
             //update num_lines to reflect that a line was deleted
             self.num_lines -= 1;
             //set x position to the end of the above line (before the append)
-            self.pointer_x = self.line_data[self.pointer_y];
+            if self.line_data[self.pointer_y] == 0 {
+                self.pointer_x = 0
+            } else {
+                self.pointer_x = self.line_data[self.pointer_y] - 1; //minus one bc len = last index - 1 
+            }
             //update line_data with new len of the above line
-            let self.line_data[self.pointer_y] = self.text[self.pointer_y].len();
+            self.line_data[self.pointer_y] = self.text[self.pointer_y].len();
 
         };
-    }//end delete
+    }//end backspace
 
     fn update(&mut self, glyph : char) {
-        self.text[self.pointer_y].insert(self.pointer_x, glyph);
-        self.pointer_x += 1;
+        //
+        if self.line_data[self.pointer_y] == 0 {
+            self.text[self.pointer_y].insert(self.pointer_x, glyph);
+        } else {
+            self.text[self.pointer_y].insert(self.pointer_x + 1, glyph);
+        }
+        //
+        if self.line_data[self.pointer_y] > 0 {
+            self.pointer_x += 1;
+        }
+        //
+        self.line_data[self.pointer_y] += 1;
     }
 
     fn newline(&mut self) {
         self.pointer_y += 1;
-        self.text.insert(self.poiner_y, String::from("\n"));
-        self.text.insert(self.pointer_y, 1_usize);
-        let self.pointer_x = 0;
+        self.text.insert(self.pointer_y, String::new() );
+        self.line_data.insert(self.pointer_y, 0_usize);
+        self.pointer_x = 0;
         self.num_lines += 1;
     }
 }
@@ -253,7 +274,7 @@ impl WgpuHandler {
     } //end update() def
 
     //
-    fn render(&mut self, text: &mut Vec<String>) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, text: &Vec<String>) -> Result<(), wgpu::SurfaceError> {
 
         // get_current_surface_texture waits for a new SurfaceTexture obj to be
         // supplied by the surface. We will render to this SurfaceTexture obj.
@@ -330,7 +351,10 @@ impl WgpuHandler {
         let mut render_text = String::new();
         for line in text {
             render_text.push_str(&line);
+            render_text.push_str("\n");
         };
+
+        println!("{:?}", render_text);
 
         // Prepare and configure the text you want to display
         // we are adding this Section obj to the GlyphBrush queue
@@ -391,11 +415,11 @@ pub async fn run() {
         Err(e) => panic!("{:?}", e)
     };
 
-    let path = wkdir.join("file.txt"); //later prompt user to provide path 
+    let path = wkdir.join("text.txt"); //later prompt user to provide path 
 
-    let doc_handler = DocHandler::load(path);
+    let mut doc_handler = DocHandler::load(&path);
 
-    //println!("{:?}", something);
+
 
     event_loop.run(move |event, _, control_flow| {
 
@@ -411,6 +435,11 @@ pub async fn run() {
         // Match events detected by the Window obj and perform the corresponding action using the
         // ControFlow obj
         // println!("{:?}", event);
+        println!("text: {:?}", doc_handler.text);
+        println!("line_data: {:?}", doc_handler.line_data);
+        println!("num_lines: {:?}", doc_handler.num_lines);
+        println!("x: {:?}", doc_handler.pointer_x);
+        println!("y: {:?}", doc_handler.pointer_y);
 
         match event { //match block 1
 
@@ -486,6 +515,133 @@ pub async fn run() {
                         WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
                                 virtual_keycode: Some(VirtualKeyCode::Key0), .. },  ..
                         } => { doc_handler.update('0') },
+                        //A
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::A), .. },  ..
+                        } => { doc_handler.update('a') },
+                        //B
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::B), .. },  ..
+                        } => { doc_handler.update('b') },
+                        //C
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::C), .. },  ..
+                        } => { doc_handler.update('c') },
+                        //D
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::D), .. },  ..
+                        } => { doc_handler.update('d') },
+                        //E
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::E), .. },  ..
+                        } => { doc_handler.update('e') },
+                        //F
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::F), .. },  ..
+                        } => { doc_handler.update('f') },
+                        //G
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::G), .. },  ..
+                        } => { doc_handler.update('g') },
+                        //H
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::H), .. },  ..
+                        } => { doc_handler.update('h') },
+                        //I
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::I), .. },  ..
+                        } => { doc_handler.update('i') },
+                        //J
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::J), .. },  ..
+                        } => { doc_handler.update('j') },
+                        //K
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::K), .. },  ..
+                        } => { doc_handler.update('k') },
+                        //L
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::L), .. },  ..
+                        } => { doc_handler.update('l') },
+                        //M
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::M), .. },  ..
+                        } => { doc_handler.update('m') },
+                        //N
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::N), .. },  ..
+                        } => { doc_handler.update('n') },
+                        //O
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::O), .. },  ..
+                        } => { doc_handler.update('o') },
+                        //P
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::P), .. },  ..
+                        } => { doc_handler.update('p') },
+                        //Q
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Q), .. },  ..
+                        } => { doc_handler.update('q') },
+                        //R
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::R), .. },  ..
+                        } => { doc_handler.update('r') },
+                        //S
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::S), .. },  ..
+                        } => { doc_handler.update('s') },
+                        //T
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::T), .. },  ..
+                        } => { doc_handler.update('t') },
+                        //U
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::U), .. },  ..
+                        } => { doc_handler.update('u') },
+                        //V
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::V), .. },  ..
+                        } => { doc_handler.update('v') },
+                        //W
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::W), .. },  ..
+                        } => { doc_handler.update('w') },
+                        //X
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::X), .. },  ..
+                        } => { doc_handler.update('x') },
+                        //Y
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Y), .. },  ..
+                        } => { doc_handler.update('y') },
+                        //Z
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Z), .. },  ..
+                        } => { doc_handler.update('z') },
+
+
+                        //Punctuation
+                        //Colon
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Colon), .. },  ..
+                        } => { doc_handler.update(':') },
+                        //Comma
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Comma), .. },  ..
+                        } => { doc_handler.update(',') },
+                        //Period
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Period), .. },  ..
+                        } => { doc_handler.update('.') },
+                        //Semicolon
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Semicolon), .. },  ..
+                        } => { doc_handler.update(';') },
+                        //Space
+                        WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Space), .. },  ..
+                        } => { doc_handler.update(' ') },
 
 
 
@@ -494,10 +650,10 @@ pub async fn run() {
                                 virtual_keycode: Some(VirtualKeyCode::Return), .. },  ..
                         } => { doc_handler.newline() },
 
-                        //Delete
+                        //Backspace
                         WindowEvent::KeyboardInput {input: KeyboardInput {state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Delete), .. },  ..
-                        } => { doc_handler.delete() },
+                                virtual_keycode: Some(VirtualKeyCode::Back), .. },  ..
+                        } => { doc_handler.backspace() },
 
 
                         // Resize the surface when window is resized
@@ -542,7 +698,7 @@ pub async fn run() {
 
                 // For notes on error handling with match blocks see The Rust Programming Language > 9.2 Recoverable Errors with Result > Mathing on Different Errors
                 // https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html
-                match wgpu_handler.render(&mut doc_handler.text) {
+                match wgpu_handler.render(&doc_handler.text) {
                     Ok(_) => {},
 
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => wgpu_handler.resize(wgpu_handler.size),
