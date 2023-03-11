@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::path::PathBuf;
+use std::env::consts;
 
 pub fn load_file_txt(path : &PathBuf) -> Result<Vec<String>, std::io::Error> {
 	//create vec we will return
@@ -22,8 +23,11 @@ pub fn load_file_txt(path : &PathBuf) -> Result<Vec<String>, std::io::Error> {
 		Err(e) => return Err(e)
 	};
 	
-	//convert text to vector of string slices splitting on \n char
-	let mut text : Vec<&str> = text.split("\r\n").collect();
+	//convert text to vector of string slices splitting on newline char by OS
+	let mut text : Vec<&str> = match consts::OS {
+		"windows" => 	{ text.split("\r\n").collect() },
+		_ => 			{ text.split("\n").collect()   },
+	};
 
 	//for every entry in text write as String to result vec
 	for line in text {
